@@ -2,6 +2,9 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LitVisual - Литература становится видимой</title>
@@ -1986,38 +1989,106 @@
         </div>
     </div>
 
-    <script>
-        // Инициализация системы
-        function initializeSystem() {
-            // Создаем демо-данные если их нет
-            if (!localStorage.getItem('litvisual_initialized')) {
-                const demoUsers = [
-                    {
-                        id: 1,
-                        name: 'Демо пользователь',
-                        email: 'demo@litvisual.ru',
-                        phone: '+79991234567',
-                        password: 'demo123',
-                        subscription: 'free',
-                        registrationDate: new Date().toISOString(),
-                        booksProgress: {
-                            'war-and-peace': 45,
-                            'crime-and-punishment': 30,
-                            'eugene-onegin': 75
-                        },
-                        settings: {
+<script>
+// === НАЧАЛО КОДА FIREBASE ===
+// Конфигурация Firebase
+const firebaseConfig = {
+    apiKey: "AIzaSyC7KKcGo4nPyeXPATVdWgMb9arfrsWsISQ",
+    authDomain: "litvisual-c953f.firebaseapp.com",
+    projectId: "litvisual-c953f",
+    storageBucket: "litvisual-c953f.firebasestorage.app",
+    messagingSenderId: "659078984926",
+    appId: "1:659078984926:web:24823ccd6fl0a51c76be4f"
+};
+
+// Инициализируем Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Инициализируем сервисы
+const auth = firebase.auth();
+const db = firebase.firestore();
+// === КОНЕЦ КОДА FIREBASE ===
+
+// Инициализация системы
+
+                   function initializeSystem() {
+    // Проверяем состояние аутентификации при загрузке страницы
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            // Пользователь вошел в систему
+            console.log("Пользователь вошел:", user.email);
+            
+            // Получаем дополнительные данные пользователя из Firestore
+            db.collection("users").doc(user.uid).get().then((doc) => {
+                if (doc.exists) {
+                    const userData = doc.data();
+                    const currentUser = {
+                        id: user.uid,
+                        email: user.email,
+                        name: userData.name || user.email.split('@')[0],
+                        phone: userData.phone || '',
+                        subscription: userData.subscription || 'free',
+                        registrationDate: userData.registrationDate || new Date().toISOString(),
+                        booksProgress: userData.booksProgress || {},
+                        settings: userData.settings || {
                             fontSize: 18,
                             darkMode: false
                         }
+                    };
+                    
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateAuthButtons(currentUser);
+                    updateDashboardInfo(currentUser);
+                    
+                    // Если мы на главной странице, переходим в личный кабинет
+                    if (document.getElementById('mainPage').classList.contains('active')) {
+                        showPage('accountPage');
                     }
-                ];
-                localStorage.setItem('users', JSON.stringify(demoUsers));
-                localStorage.setItem('litvisual_initialized', 'true');
+                }
+            }).catch((error) => {
+                console.error("Ошибка получения данных пользователя:", error);
+            });
+        } else {
+            // Пользователь не вошел
+            console.log("Пользователь не вошел");
+            localStorage.removeItem('currentUser');
+            
+            // Если мы в личном кабинете, возвращаем на главную
+            if (document.getElementById('accountPage').classList.contains('active')) {
+                showPage('mainPage');
             }
             
+            // Сбрасываем кнопки авторизации
+            resetAuthButtons();
+        }
+    });
+    
+    // Инициализируем подсветку слов
+    setTimeout(initWordHighlights, 1000);
+}
             checkAuthStatus();
         }
+        // Функция сброса кнопок авторизации
+function resetAuthButtons() {
+    const loginBtn = document.getElementById('loginBtn');
+    const signupBtn = document.getElementById('signupBtn');
+    
+    if (loginBtn && signupBtn) {
+        loginBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Войти`;
+        loginBtn.onclick = () => {
+            authModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            switchTab('login');
+        };
         
+        signupBtn.innerHTML = `<i class="fas fa-rocket"></i> Начать бесплатно`;
+        signupBtn.onclick = () => {
+            authModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            switchTab('signup');
+        };
+    }
+}
         // Проверка авторизации
         function checkAuthStatus() {
             const currentUser = JSON.parse(localStorage.getItem('currentUser'));
